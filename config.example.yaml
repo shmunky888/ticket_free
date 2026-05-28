@@ -1,0 +1,6 @@
+headless: false                  # Run Chrome headless (true to run without UI, false to see Chrome)
+event_url: "https://www.ihaveticket.com" # The event URL you want to buy tickets for
+login_url: "https://www.ihaveticket.com/" # The main site URL
+username: "your_email@gmail.com" # Your email for Gmail/Google login
+password: "your_password"        # Your login password (if applicable)
+login_trigger_selector: ""       # Optional: CSS selector for button that opens the login modal (e.g., 'a.login-btn')
