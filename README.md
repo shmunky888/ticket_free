@@ -11,7 +11,7 @@ This repository contains a ticket bot built with Selenium for automating ticket 
 2. Ensure you have ChromeDriver installed and accessible in your PATH.
 3. Run the bot:
    ```bash
-   python bot.py
+   python ticket_bot.py
    ```
 
 ## Usage
