@@ -266,7 +266,7 @@ def purchase_ticket(driver: webdriver.Remote, cfg: Dict[str, Any]) -> None:
             buy_btn = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, buy_selector)))
             buy_btn.click()
             break
-        except (ElementClickInterceptedException, StaleElementReferenceException) as e:
+        except (ElementClickInterceptedException, StaleElementReferenceException):
             if attempt == 2:
                 raise
             time.sleep(1)
