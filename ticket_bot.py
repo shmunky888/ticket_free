@@ -1,6 +1,7 @@
 import os
 import time
 import logging
+import json
 import yaml
 from typing import Dict, Any
 from selenium import webdriver
@@ -47,6 +48,47 @@ def load_config(path: str) -> Dict[str, Any]:
     cfg.setdefault("password", os.environ.get("TICKET_PASSWORD", ""))
 
     return cfg
+
+
+def load_cookies(driver: webdriver.Remote, filepath: str) -> bool:
+    """Load cookies from a JSON file and add them to the driver."""
+    if not os.path.exists(filepath):
+        logger.info("Cookie file '%s' not found. Will perform manual login.", filepath)
+        return False
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            cookies = json.load(f)
+        if not isinstance(cookies, list):
+            logger.warning("Invalid cookies format in '%s'; expected a list.", filepath)
+            return False
+
+        logger.info("Loading %d cookies from '%s'...", len(cookies), filepath)
+        for cookie in cookies:
+            # Selenium requires expiry to be an integer if present
+            if "expiry" in cookie:
+                try:
+                    cookie["expiry"] = int(cookie["expiry"])
+                except (ValueError, TypeError):
+                    cookie.pop("expiry", None)
+            try:
+                driver.add_cookie(cookie)
+            except WebDriverException as e:
+                logger.debug("Failed to add cookie %s: %s", cookie.get("name"), e)
+        return True
+    except Exception as e:
+        logger.error("Error loading cookies from '%s': %s", filepath, e)
+        return False
+
+
+def save_cookies(driver: webdriver.Remote, filepath: str) -> None:
+    """Save current session cookies to a JSON file."""
+    try:
+        cookies = driver.get_cookies()
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(cookies, f, indent=2)
+        logger.info("Cookies saved successfully to '%s'.", filepath)
+    except Exception as e:
+        logger.error("Failed to save cookies to '%s': %s", filepath, e)
 
 
 def init_driver(headless: bool) -> webdriver.Chrome:
@@ -185,10 +227,43 @@ def dismiss_cookie_consent(driver: webdriver.Remote) -> bool:
     return False
 
 
+def is_logged_in(driver: webdriver.Remote) -> bool:
+    """Check if the user is currently logged in by looking for the presence/visibility of the login button."""
+    try:
+        elements = driver.find_elements(By.CSS_SELECTOR, "button.login-btn")
+        if not elements:
+            return True
+        btn = elements[0]
+        if btn is None:
+            return True
+        return not btn.is_displayed()
+    except WebDriverException:
+        return False
+
+
 def login_if_needed(driver: webdriver.Remote, cfg: Dict[str, Any]) -> None:
     login_url = cfg.get("login_url", cfg["event_url"]).strip()
     driver.get(login_url)
     dismiss_cookie_consent(driver)
+
+    cookies_file = cfg.get("cookies_file", "").strip()
+    cookies_loaded = False
+    if cookies_file:
+        cookies_loaded = load_cookies(driver, cookies_file)
+        if cookies_loaded:
+            logger.info("Cookies loaded. Refreshing page to apply authentication...")
+            driver.refresh()
+            time.sleep(1.5)
+
+    if is_logged_in(driver):
+        logger.info("Successfully logged in (already authenticated)!")
+        return
+
+    if cookies_file:
+        logger.info("Cookie login failed or cookies expired. Proceeding to manual login...")
+    else:
+        logger.info("No cookies file configured. Proceeding to manual login...")
+
     wait = WebDriverWait(driver, 15)
 
     # 1. Open the login modal by clicking the login button
@@ -237,21 +312,13 @@ def login_if_needed(driver: webdriver.Remote, cfg: Dict[str, Any]) -> None:
         "Please complete login in the Chrome window if prompted..."
     )
 
-    def is_logged_in(d):
-        try:
-            elements = d.find_elements(By.CSS_SELECTOR, "button.login-btn")
-            if not elements:
-                return True
-            btn = elements[0]
-            if btn is None:
-                return True
-            return not btn.is_displayed()
-        except WebDriverException:
-            return False
-
     login_wait = WebDriverWait(driver, 120)
     login_wait.until(is_logged_in)
     logger.info("Successfully logged in via Gmail/Google!")
+
+    # Save session cookies if cookies file is configured
+    if cookies_file:
+        save_cookies(driver, cookies_file)
 
 
 def purchase_ticket(driver: webdriver.Remote, cfg: Dict[str, Any]) -> None:

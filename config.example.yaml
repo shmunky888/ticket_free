@@ -4,3 +4,4 @@ login_url: "https://www.ihaveticket.com/" # The main site URL
 username: "your_email@gmail.com" # Your email for Gmail/Google login
 password: "your_password"        # Your login password (if applicable)
 login_trigger_selector: ""       # Optional: CSS selector for button that opens the login modal (e.g., 'a.login-btn')
+cookies_file: "cookies.json"       # Optional: Path to the JSON file where session cookies will be stored/loaded
